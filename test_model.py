@@ -1,6 +1,9 @@
 import cv2
 import numpy as np
-from tensorflow.keras.models import load_model
+import tensorflow as tf
+from tensorflow import keras
+from keras.models import load_model
+
 from utils import get_face_landmarks
 
 # Define emotion labels
