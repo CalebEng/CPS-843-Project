@@ -1,82 +1,77 @@
 import cv2
 import numpy as np
-import tensorflow as tf
-from tensorflow import keras
-from keras.models import load_model
+from tensorflow.keras.models import load_model
+import matplotlib.pyplot as plt
 
-from utils import get_face_landmarks
+# Load the trained model
+model = load_model('emotion_detection_cnn_model.h5')
 
-# Define emotion labels
-emotions = ['Angry', 'Disgusted', 'Fearful', 'Happy', 'Neutral', 'Sad', 'Surprised']
+# Define emotion labels (assuming the same order as in training)
+emotion_labels = ['Angry', 'Disgust', 'Fear', 'Happy', 'Sad', 'Surprise', 'Neutral']
 
-# Load the trained CNN model
-model = load_model('emotion_recognition_cnn.h5')
-
-# Start video capture from webcam
+# Initialize the webcam
 cap = cv2.VideoCapture(0)
 
-def draw_probabilities(probabilities):
-    # Create a black image for the probability graph (width 400, height 300)
-    graph = np.zeros((300, 400, 3), dtype=np.uint8)
+# Check if webcam opened successfully
+if not cap.isOpened():
+    print("Error: Could not open video.")
+    exit()
 
-    # Set the font and other display parameters
-    font = cv2.FONT_HERSHEY_SIMPLEX
-    bar_width = 50
-    max_bar_height = 200  # Max height of the bars in the graph
-    
-    # Loop through the probabilities and draw bars
-    for i, prob in enumerate(probabilities):
-        # Calculate the bar height based on probability
-        bar_height = int(prob * max_bar_height)
-        x = i * bar_width + 10
-        
-        # Draw a filled rectangle representing the bar
-        cv2.rectangle(graph, (x, 250 - bar_height), (x + bar_width - 10, 250), (0, 255, 0), -1)
-        
-        # Display the emotion label below each bar
-        cv2.putText(graph, emotions[i], (x, 270), font, 0.5, (255, 255, 255), 1, cv2.LINE_AA)
-        
-        # Display the probability percentage above each bar
-        prob_text = f"{prob * 100:.1f}%"
-        cv2.putText(graph, prob_text, (x, 240 - bar_height), font, 0.5, (255, 255, 255), 1, cv2.LINE_AA)
+# Load pre-trained face detector
+face_cascade = cv2.CascadeClassifier(cv2.data.haarcascades + 'haarcascade_frontalface_default.xml')
 
-    return graph
+# Initialize Matplotlib for probability display
+plt.ion()
+fig, ax = plt.subplots()
+bars = ax.bar(emotion_labels, [0]*7)
+ax.set_ylim([0, 1])
+ax.set_title("Emotion Probabilities")
 
 while True:
+    # Capture frame-by-frame
     ret, frame = cap.read()
-    
     if not ret:
         break
-
-    # Extract face landmarks from the current frame
-    face_landmarks = get_face_landmarks(frame, draw=True, static_image_mode=False)
     
-    if len(face_landmarks) == 1404:  # Ensure the expected number of landmarks
-        # Reshape and normalize the landmarks to match the model's input
-        face_landmarks = np.array(face_landmarks).reshape(1, 26, 54, 1)  # Reshape for CNN
-        face_landmarks = face_landmarks / np.max(face_landmarks)  # Normalize
+    # Convert frame to grayscale
+    gray = cv2.cvtColor(frame, cv2.COLOR_BGR2GRAY)
+    
+    # Detect faces in the frame
+    faces = face_cascade.detectMultiScale(gray, scaleFactor=1.1, minNeighbors=5, minSize=(30, 30))
+    
+    for (x, y, w, h) in faces:
+        # Extract the face from the grayscale frame
+        face_gray = gray[y:y+h, x:x+w]
+        
+        # Resize the face to 48x48 pixels (the input size for our model)
+        face_resized = cv2.resize(face_gray, (48, 48))
+        face_normalized = face_resized / 255.0  # Normalize pixel values
+        face_normalized = np.reshape(face_normalized, (1, 48, 48, 1))  # Reshape to match model input
 
-        # Predict the emotion probabilities
-        probabilities = model.predict(face_landmarks)[0]  # Get the first (and only) sample's probabilities
-        emotion_index = np.argmax(probabilities)
-        emotion_label = emotions[emotion_index]
+        # Predict the emotion
+        prediction = model.predict(face_normalized)
+        emotion_label = emotion_labels[np.argmax(prediction)]
+        confidence = np.max(prediction)
 
-        # Display the emotion label on the frame
-        cv2.putText(frame, emotion_label, (10, 30), cv2.FONT_HERSHEY_SIMPLEX, 1, (0, 255, 0), 2)
+        # Display the label and confidence
+        label = f"{emotion_label} ({confidence * 100:.2f}%)"
+        cv2.putText(frame, label, (x, y - 10), cv2.FONT_HERSHEY_SIMPLEX, 0.6, (255, 255, 255), 2)
+        cv2.rectangle(frame, (x, y), (x+w, y+h), (0, 255, 0), 2)
+        
+        # Update the probability bar chart
+        for i, bar in enumerate(bars):
+            bar.set_height(prediction[0][i])
+        plt.draw()
+        plt.pause(0.001)
 
-        # Generate the probability graph
-        graph = draw_probabilities(probabilities)
-
-        # Show the probability graph in a separate window
-        cv2.imshow('Emotion Probabilities', graph)
-
-    # Show the webcam feed with the predicted emotion
-    cv2.imshow('Emotion Recognition', frame)
-
-    # Exit if 'q' is pressed
+    # Display the frame with emotion labels
+    cv2.imshow('Emotion Detection', frame)
+    
+    # Press 'q' to exit
     if cv2.waitKey(1) & 0xFF == ord('q'):
         break
 
 # Release resources
 cap.release()
 cv2.destroyAllWindows()
+plt.close()
