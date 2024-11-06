@@ -4,7 +4,7 @@ from tensorflow.keras.models import load_model
 import matplotlib.pyplot as plt
 
 # Load the trained model
-model = load_model('emotion_detection_cnn_model.h5')
+model = load_model('emotion_recognition_cnn.h5')
 
 # Define emotion labels (assuming the same order as in training)
 emotion_labels = ['Angry', 'Disgust', 'Fear', 'Happy', 'Sad', 'Surprise', 'Neutral']

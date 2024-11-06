@@ -1,83 +1,131 @@
-import numpy as np
 import tensorflow as tf
 from tensorflow.keras.models import Sequential
-from tensorflow.keras.layers import Conv2D, MaxPooling2D, Dense, Flatten, Dropout, BatchNormalization
-from sklearn.model_selection import train_test_split
-from sklearn.metrics import classification_report, confusion_matrix
+from tensorflow.keras.layers import Conv2D, MaxPooling2D, Flatten, Dense, Dropout
+from tensorflow.keras.preprocessing.image import ImageDataGenerator
+import matplotlib.pyplot as plt
+import numpy as np
+import seaborn as sns
+from sklearn.metrics import confusion_matrix, classification_report
+import os
 
-# Load data from the text file
-data_file = "data.txt"
-data = np.loadtxt(data_file)
+# Define directories for training and testing data
+train_dir = 'data/train'
+test_dir = 'data/test'
 
-# Split data into features (X) and labels (y)
-X = data[:, :-1]  # Features (landmarks)
-y = data[:, -1]   # Labels (emotions)
+# Set up image data generators for data augmentation
+train_datagen = ImageDataGenerator(
+    rescale=1.0 / 255.0,
+    rotation_range=10,
+    width_shift_range=0.1,
+    height_shift_range=0.1,
+    shear_range=0.1,
+    zoom_range=0.1,
+    horizontal_flip=True
+)
 
-# Reshape X to fit CNN input (assuming 1404 landmarks; reshape into a suitable shape)
-# Example: reshaping into a 2D format, e.g., 26x54, or adjust based on actual data shape
-X = X.reshape(-1, 26, 54, 1)  # Reshape to 26x54 with 1 channel (grayscale)
+test_datagen = ImageDataGenerator(rescale=1.0 / 255.0)
 
-# Normalize data to range [0, 1]
-X = X / np.max(X)
+# Load images in batches
+train_generator = train_datagen.flow_from_directory(
+    train_dir,
+    target_size=(48, 48),
+    color_mode="grayscale",
+    class_mode='categorical',
+    batch_size=64,
+    shuffle=True
+)
 
-# One-hot encode the labels
-y = tf.keras.utils.to_categorical(y, num_classes=7)
+test_generator = test_datagen.flow_from_directory(
+    test_dir,
+    target_size=(48, 48),
+    color_mode="grayscale",
+    class_mode='categorical',
+    batch_size=64,
+    shuffle=False
+)
 
-# Split into training and testing sets
-X_train, X_test, y_train, y_test = train_test_split(X, y, test_size=0.3, random_state=42, stratify=y)
-
-# Build the CNN model
-def build_cnn_model():
+# Define the CNN model architecture
+def create_combined_model(input_shape=(48, 48, 1), num_classes=7):
     model = Sequential()
-
-    # First convolutional layer
-    model.add(Conv2D(32, (3, 3), activation='relu', input_shape=(26, 54, 1)))
+    model.add(Conv2D(128, kernel_size=(3, 3), activation='relu', input_shape=input_shape))
     model.add(MaxPooling2D(pool_size=(2, 2)))
+    model.add(Dropout(0.4))
 
-    # Second convolutional layer
-    model.add(Conv2D(64, (3, 3), activation='relu'))
+    model.add(Conv2D(256, kernel_size=(3, 3), activation='relu'))
     model.add(MaxPooling2D(pool_size=(2, 2)))
+    model.add(Dropout(0.4))
 
-    # Third convolutional layer
-    model.add(Conv2D(128, (3, 3), activation='relu'))
+    model.add(Conv2D(512, kernel_size=(3, 3), activation='relu'))
     model.add(MaxPooling2D(pool_size=(2, 2)))
+    model.add(Dropout(0.4))
 
-    # Flatten and fully connected layers
+    model.add(Conv2D(512, kernel_size=(3, 3), activation='relu'))
+    model.add(MaxPooling2D(pool_size=(2, 2)))
+    model.add(Dropout(0.4))
+
     model.add(Flatten())
-    model.add(Dense(128, activation='relu'))
-    model.add(Dropout(0.5))  # Prevent overfitting
-
-    model.add(Dense(64, activation='relu'))
-    model.add(Dropout(0.5))
-
-    # Output layer (7 emotions)
-    model.add(Dense(7, activation='softmax'))
-
-    # Compile the model
-    model.compile(optimizer='adam', loss='categorical_crossentropy', metrics=['accuracy'])
+    model.add(Dense(512, activation='relu'))
+    model.add(Dropout(0.4))
+    model.add(Dense(256, activation='relu'))
+    model.add(Dropout(0.3))
+    model.add(Dense(num_classes, activation='softmax'))
 
     return model
 
-# Build the CNN model
-cnn_model = build_cnn_model()
+# Instantiate the model
+model = create_combined_model(input_shape=(48, 48, 1), num_classes=train_generator.num_classes)
+
+# Compile the model
+model.compile(optimizer='adam', loss='categorical_crossentropy', metrics=['accuracy'])
+
+# Display the model architecture
+model.summary()
 
 # Train the model
-history = cnn_model.fit(X_train, y_train, epochs=70, batch_size=64, validation_data=(X_test, y_test))
+history = model.fit(
+    train_generator,
+    steps_per_epoch=train_generator.samples // train_generator.batch_size,
+    validation_data=test_generator,
+    validation_steps=test_generator.samples // test_generator.batch_size,
+    epochs=30
+)
 
-# Evaluate the model on the test data
-test_loss, test_accuracy = cnn_model.evaluate(X_test, y_test)
-print(f"Test Accuracy: {test_accuracy * 100:.2f}%")
+# Plot training history
+plt.figure(figsize=(12, 5))
+plt.subplot(1, 2, 1)
+plt.plot(history.history['accuracy'], label='Training Accuracy')
+plt.plot(history.history['val_accuracy'], label='Validation Accuracy')
+plt.xlabel('Epoch')
+plt.ylabel('Accuracy')
+plt.legend()
 
-# Generate classification report and confusion matrix
-y_pred = cnn_model.predict(X_test)
-y_pred_classes = np.argmax(y_pred, axis=1)
-y_true_classes = np.argmax(y_test, axis=1)
+plt.subplot(1, 2, 2)
+plt.plot(history.history['loss'], label='Training Loss')
+plt.plot(history.history['val_loss'], label='Validation Loss')
+plt.xlabel('Epoch')
+plt.ylabel('Loss')
+plt.legend()
+plt.show()
 
-print("Confusion Matrix:")
-print(confusion_matrix(y_true_classes, y_pred_classes))
+# Save the model
+model.save('new-model.h5')
+print("Model saved as new-model.h5")
 
-print("\nClassification Report:")
-print(classification_report(y_true_classes, y_pred_classes, target_names=['Angry', 'Disgusted', 'Fearful', 'Happy', 'Neutral', 'Sad', 'Surprised']))
+# Generate predictions and confusion matrix
+Y_pred = model.predict(test_generator)
+y_pred = np.argmax(Y_pred, axis=1)
+y_true = test_generator.classes
 
-# Save the trained model
-cnn_model.save('emotion_recognition_cnn.h5')
+# Compute and display confusion matrix
+conf_matrix = confusion_matrix(y_true, y_pred)
+plt.figure(figsize=(8, 6))
+sns.heatmap(conf_matrix, annot=True, fmt='d', cmap='Blues', 
+            xticklabels=test_generator.class_indices.keys(), 
+            yticklabels=test_generator.class_indices.keys())
+plt.xlabel('Predicted Label')
+plt.ylabel('True Label')
+plt.title('Confusion Matrix')
+plt.show()
+
+# Display classification report
+print(classification_report(y_true, y_pred, target_names=test_generator.class_indices.keys()))
