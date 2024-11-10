@@ -6,7 +6,7 @@ import seaborn as sns
 import matplotlib.pyplot as plt
 
 # Load the model
-model = load_model('70percentaccuracy.h5')
+model = load_model('newmodel.h5')
 
 # Load the test data using ImageDataGenerator (or reuse test_generator if in the same script)
 test_datagen = ImageDataGenerator(rescale=1.0 / 255.0)

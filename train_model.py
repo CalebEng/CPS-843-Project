@@ -11,6 +11,8 @@ import numpy as np
 import seaborn as sns
 from sklearn.metrics import confusion_matrix, classification_report
 
+# This is the code to train the 63% accuracy model
+
 # Define directories for training and testing data
 train_dir = 'data/train'
 test_dir = 'data/test'
@@ -55,7 +57,7 @@ def create_improved_model(input_shape=(48, 48, 1), num_classes=7):
     model.add(Conv2D(64, kernel_size=(3, 3), activation='relu'))
     model.add(BatchNormalization())
     model.add(MaxPooling2D(pool_size=(2, 2)))
-    model.add(Dropout(0.3))
+    model.add(Dropout(0.25))
 
     # Second convolutional block
     model.add(Conv2D(128, kernel_size=(3, 3), activation='relu'))
@@ -63,7 +65,7 @@ def create_improved_model(input_shape=(48, 48, 1), num_classes=7):
     model.add(Conv2D(128, kernel_size=(3, 3), activation='relu'))
     model.add(BatchNormalization())
     model.add(MaxPooling2D(pool_size=(2, 2)))
-    model.add(Dropout(0.3))
+    model.add(Dropout(0.25))
 
     # Third convolutional block
     model.add(Conv2D(256, kernel_size=(3, 3), activation='relu'))
@@ -71,13 +73,13 @@ def create_improved_model(input_shape=(48, 48, 1), num_classes=7):
     model.add(Conv2D(256, kernel_size=(3, 3), activation='relu'))
     model.add(BatchNormalization())
     model.add(MaxPooling2D(pool_size=(2, 2)))
-    model.add(Dropout(0.3))
+    model.add(Dropout(0.25))
 
     # Flatten and fully connected layers
     model.add(Flatten())
     model.add(Dense(512, activation='relu', kernel_regularizer=l2(0.01)))
     model.add(BatchNormalization())
-    model.add(Dropout(0.3))
+    model.add(Dropout(0.25))
     model.add(Dense(num_classes, activation='softmax'))
 
     return model
@@ -86,11 +88,16 @@ def create_improved_model(input_shape=(48, 48, 1), num_classes=7):
 # Instantiate the model
 model = create_improved_model(input_shape=(48, 48, 1), num_classes=train_generator.num_classes)
 
-# Define learning rate scheduler
+initial_learning_rate = 0.001
+lr_schedule = ExponentialDecay(
+    initial_learning_rate,
+    decay_steps=100000,
+    decay_rate=0.96,
+    staircase=True
+)
+optimizer = Adam(learning_rate=lr_schedule)
+model.compile(loss='categorical_crossentropy', optimizer=optimizer, metrics=['accuracy'])
 
-
-# Compile the model
-model.compile(loss='categorical_crossentropy', optimizer='adam', metrics=['accuracy'])
 
 # Display the model architecture
 model.summary()
