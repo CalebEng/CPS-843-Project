@@ -3,13 +3,13 @@ from tensorflow.keras.models import Sequential
 from tensorflow.keras.layers import Conv2D, MaxPooling2D, Flatten, Dense, Dropout, BatchNormalization
 from tensorflow.keras.regularizers import l2
 from tensorflow.keras.preprocessing.image import ImageDataGenerator
-from tensorflow.keras.callbacks import ReduceLROnPlateau
+from tensorflow.keras.optimizers.schedules import ExponentialDecay
+from tensorflow.keras.optimizers import Adam
 
 import matplotlib.pyplot as plt
 import numpy as np
 import seaborn as sns
 from sklearn.metrics import confusion_matrix, classification_report
-import os
 
 # Define directories for training and testing data
 train_dir = 'data/train'
@@ -18,12 +18,6 @@ test_dir = 'data/test'
 # Set up image data generators for data augmentation
 train_datagen = ImageDataGenerator(
     rescale=1.0 / 255.0,
-    rotation_range=10,
-    width_shift_range=0.1,
-    height_shift_range=0.1,
-    shear_range=0.1,
-    zoom_range=0.1,
-    horizontal_flip=True
 )
 
 test_datagen = ImageDataGenerator(rescale=1.0 / 255.0)
@@ -47,30 +41,34 @@ test_generator = test_datagen.flow_from_directory(
     shuffle=False
 )
 
-# Define the CNN model architecture
-def create_combined_model(input_shape=(48, 48, 1), num_classes=7):
-    model = Sequential()
 
+# Define the CNN model architecture
+def create_improved_model(input_shape=(48, 48, 1), num_classes=7):
+    model = Sequential()
+    
+    # Start with an Input layer to specify input shape
+    model.add(tf.keras.layers.Input(shape=input_shape))
+    
     # First convolutional block
-    model.add(Conv2D(64, kernel_size=(3, 3), activation='relu', kernel_regularizer=l2(0.01), input_shape=input_shape))
+    model.add(Conv2D(64, kernel_size=(3, 3), activation='relu'))
+    model.add(BatchNormalization())
+    model.add(Conv2D(64, kernel_size=(3, 3), activation='relu'))
     model.add(BatchNormalization())
     model.add(MaxPooling2D(pool_size=(2, 2)))
     model.add(Dropout(0.3))
 
     # Second convolutional block
-    model.add(Conv2D(128, kernel_size=(3, 3), activation='relu', kernel_regularizer=l2(0.01)))
+    model.add(Conv2D(128, kernel_size=(3, 3), activation='relu'))
+    model.add(BatchNormalization())
+    model.add(Conv2D(128, kernel_size=(3, 3), activation='relu'))
     model.add(BatchNormalization())
     model.add(MaxPooling2D(pool_size=(2, 2)))
     model.add(Dropout(0.3))
 
     # Third convolutional block
-    model.add(Conv2D(256, kernel_size=(3, 3), activation='relu', kernel_regularizer=l2(0.01)))
+    model.add(Conv2D(256, kernel_size=(3, 3), activation='relu'))
     model.add(BatchNormalization())
-    model.add(MaxPooling2D(pool_size=(2, 2)))
-    model.add(Dropout(0.3))
-
-    # Fourth convolutional block
-    model.add(Conv2D(512, kernel_size=(3, 3), activation='relu', kernel_regularizer=l2(0.01)))
+    model.add(Conv2D(256, kernel_size=(3, 3), activation='relu'))
     model.add(BatchNormalization())
     model.add(MaxPooling2D(pool_size=(2, 2)))
     model.add(Dropout(0.3))
@@ -78,20 +76,21 @@ def create_combined_model(input_shape=(48, 48, 1), num_classes=7):
     # Flatten and fully connected layers
     model.add(Flatten())
     model.add(Dense(512, activation='relu', kernel_regularizer=l2(0.01)))
-    model.add(Dropout(0.5))
+    model.add(BatchNormalization())
+    model.add(Dropout(0.3))
     model.add(Dense(num_classes, activation='softmax'))
 
     return model
 
-# Instantiate the model
-model = create_combined_model(input_shape=(48, 48, 1), num_classes=train_generator.num_classes)
 
-# Compile the model
-model.compile(optimizer='adam', loss='categorical_crossentropy', metrics=['accuracy'])
+# Instantiate the model
+model = create_improved_model(input_shape=(48, 48, 1), num_classes=train_generator.num_classes)
 
 # Define learning rate scheduler
-lr_scheduler = ReduceLROnPlateau(monitor='val_loss', factor=0.5, patience=3, verbose=1, min_lr=1e-6)
 
+
+# Compile the model
+model.compile(loss='categorical_crossentropy', optimizer='adam', metrics=['accuracy'])
 
 # Display the model architecture
 model.summary()
@@ -102,8 +101,7 @@ history = model.fit(
     steps_per_epoch=train_generator.samples // train_generator.batch_size,
     validation_data=test_generator,
     validation_steps=test_generator.samples // test_generator.batch_size,
-    epochs=50,
-    callbacks=[lr_scheduler]
+    epochs=50  # Increase epochs for better training
 )
 
 # Plot training history
@@ -124,8 +122,7 @@ plt.legend()
 plt.show()
 
 # Save the model
-model.save('new-model2.h5')
-print("Model saved as new-model.h5")
+model.save('newmodel.h5')
 
 # Generate predictions and confusion matrix
 Y_pred = model.predict(test_generator)

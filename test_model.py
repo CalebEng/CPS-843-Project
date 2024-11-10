@@ -1,15 +1,48 @@
 import cv2
 import numpy as np
+import os
 from tensorflow.keras.models import load_model
 import matplotlib.pyplot as plt
+import random
 
 # Load the trained model
-model = load_model('new-model2.h5')
+model = load_model('newmodel.h5')
 
 # Define emotion labels (assuming the same order as in training)
 emotion_labels = ['Angry', 'Disgust', 'Fear', 'Happy', 'Sad', 'Surprise', 'Neutral']
 
-# Initialize the webcam
+# Function to test random images from each emotion category in the test set
+def test_random_images(test_dir):
+    plt.figure(figsize=(10, 10))
+    class_labels = emotion_labels
+    for i, emotion_class in enumerate(class_labels):
+        class_dir = os.path.join(test_dir, emotion_class)
+        random_image = random.choice(os.listdir(class_dir))
+        img_path = os.path.join(class_dir, random_image)
+        
+        # Load and preprocess the image
+        img = cv2.imread(img_path, cv2.IMREAD_GRAYSCALE)
+        img_resized = cv2.resize(img, (48, 48))
+        img_normalized = img_resized / 255.0
+        img_normalized = np.reshape(img_normalized, (1, 48, 48, 1))
+        
+        # Predict emotion
+        prediction = model.predict(img_normalized)
+        predicted_label = class_labels[np.argmax(prediction)]
+        
+        # Display the image and prediction
+        plt.subplot(3, 3, i + 1)
+        plt.imshow(img_resized, cmap='gray')
+        plt.title(f"True: {emotion_class}\nPred: {predicted_label}")
+        plt.axis('off')
+    plt.tight_layout()
+    plt.show()
+
+# Run the function to display random images from the test set
+test_dir = 'data/test'  # Define the path to your test data directory
+test_random_images(test_dir)
+
+# Initialize the webcam for real-time emotion detection
 cap = cv2.VideoCapture(0)
 
 # Check if webcam opened successfully
