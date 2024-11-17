@@ -1,83 +1,124 @@
-import numpy as np
 import tensorflow as tf
 from tensorflow.keras.models import Sequential
-from tensorflow.keras.layers import Conv2D, MaxPooling2D, Dense, Flatten, Dropout, BatchNormalization
-from sklearn.model_selection import train_test_split
-from sklearn.metrics import classification_report, confusion_matrix
+from tensorflow.keras.layers import Conv2D, MaxPooling2D, Flatten, Dense, Dropout, BatchNormalization
+from tensorflow.keras.regularizers import l2
+from tensorflow.keras.preprocessing.image import ImageDataGenerator
+from tensorflow.keras.optimizers.schedules import ExponentialDecay
+from tensorflow.keras.optimizers import Adam
 
-# Load data from the text file
-data_file = "data.txt"
-data = np.loadtxt(data_file)
+import matplotlib.pyplot as plt
 
-# Split data into features (X) and labels (y)
-X = data[:, :-1]  # Features (landmarks)
-y = data[:, -1]   # Labels (emotions)
+# This is the code to train the 63% accuracy model
 
-# Reshape X to fit CNN input (assuming 1404 landmarks; reshape into a suitable shape)
-# Example: reshaping into a 2D format, e.g., 26x54, or adjust based on actual data shape
-X = X.reshape(-1, 26, 54, 1)  # Reshape to 26x54 with 1 channel (grayscale)
+# initialize file path names for training andtesting data
+train_dir = 'data/train'
+test_dir = 'data/test'
 
-# Normalize data to range [0, 1]
-X = X / np.max(X)
+# Initialize image data generators
+train_datagen = ImageDataGenerator(rescale=1.0 / 255.0,)
 
-# One-hot encode the labels
-y = tf.keras.utils.to_categorical(y, num_classes=7)
+test_datagen = ImageDataGenerator(rescale=1.0 / 255.0)
 
-# Split into training and testing sets
-X_train, X_test, y_train, y_test = train_test_split(X, y, test_size=0.3, random_state=42, stratify=y)
+# process and load images in batches
+train_generator = train_datagen.flow_from_directory(
+    train_dir,
+    target_size=(48, 48),
+    color_mode="grayscale",
+    class_mode='categorical',
+    batch_size=64,
+    shuffle=True
+)
 
-# Build the CNN model
-def build_cnn_model():
+test_generator = test_datagen.flow_from_directory(
+    test_dir,
+    target_size=(48, 48),
+    color_mode="grayscale",
+    class_mode='categorical',
+    batch_size=64,
+    shuffle=False
+)
+
+# function to load and create sequential cnn for testing
+def create_model(input_shape=(48, 48, 1), num_classes=7):
     model = Sequential()
-
-    # First convolutional layer
-    model.add(Conv2D(32, (3, 3), activation='relu', input_shape=(26, 54, 1)))
+    
+    # input layer
+    model.add(tf.keras.layers.Input(shape=input_shape))
+    
+    # first conv block
+    model.add(Conv2D(64, kernel_size=(3, 3), activation='relu'))
+    model.add(BatchNormalization())
+    model.add(Conv2D(64, kernel_size=(3, 3), activation='relu'))
+    model.add(BatchNormalization())
     model.add(MaxPooling2D(pool_size=(2, 2)))
+    model.add(Dropout(0.25))
 
-    # Second convolutional layer
-    model.add(Conv2D(64, (3, 3), activation='relu'))
+    # second conv block
+    model.add(Conv2D(128, kernel_size=(3, 3), activation='relu'))
+    model.add(BatchNormalization())
+    model.add(Conv2D(128, kernel_size=(3, 3), activation='relu'))
+    model.add(BatchNormalization())
     model.add(MaxPooling2D(pool_size=(2, 2)))
+    model.add(Dropout(0.25))
 
-    # Third convolutional layer
-    model.add(Conv2D(128, (3, 3), activation='relu'))
+    # third conv block
+    model.add(Conv2D(256, kernel_size=(3, 3), activation='relu'))
+    model.add(BatchNormalization())
+    model.add(Conv2D(256, kernel_size=(3, 3), activation='relu'))
+    model.add(BatchNormalization())
     model.add(MaxPooling2D(pool_size=(2, 2)))
+    model.add(Dropout(0.25))
 
-    # Flatten and fully connected layers
+    # flatten and connect layers
     model.add(Flatten())
-    model.add(Dense(128, activation='relu'))
-    model.add(Dropout(0.5))  # Prevent overfitting
-
-    model.add(Dense(64, activation='relu'))
-    model.add(Dropout(0.5))
-
-    # Output layer (7 emotions)
-    model.add(Dense(7, activation='softmax'))
-
-    # Compile the model
-    model.compile(optimizer='adam', loss='categorical_crossentropy', metrics=['accuracy'])
+    model.add(Dense(512, activation='relu', kernel_regularizer=l2(0.01)))
+    model.add(BatchNormalization())
+    model.add(Dropout(0.25))
+    model.add(Dense(num_classes, activation='softmax'))
 
     return model
 
-# Build the CNN model
-cnn_model = build_cnn_model()
 
-# Train the model
-history = cnn_model.fit(X_train, y_train, epochs=70, batch_size=64, validation_data=(X_test, y_test))
+# initialize the model
+model = create_model(input_shape=(48, 48, 1), num_classes=train_generator.num_classes)
 
-# Evaluate the model on the test data
-test_loss, test_accuracy = cnn_model.evaluate(X_test, y_test)
-print(f"Test Accuracy: {test_accuracy * 100:.2f}%")
+initial_learning_rate = 0.001
+lr_schedule = ExponentialDecay(
+    initial_learning_rate,
+    decay_steps=100000,
+    decay_rate=0.96,
+    staircase=True
+)
+optimizer = Adam(learning_rate=lr_schedule)
+model.compile(loss='categorical_crossentropy', optimizer=optimizer, metrics=['accuracy'])
 
-# Generate classification report and confusion matrix
-y_pred = cnn_model.predict(X_test)
-y_pred_classes = np.argmax(y_pred, axis=1)
-y_true_classes = np.argmax(y_test, axis=1)
+model.summary()
 
-print("Confusion Matrix:")
-print(confusion_matrix(y_true_classes, y_pred_classes))
+# training the model
+history = model.fit(
+    train_generator,
+    steps_per_epoch=train_generator.samples // train_generator.batch_size,
+    validation_data=test_generator,
+    validation_steps=test_generator.samples // test_generator.batch_size,
+    epochs=50  # tune epoch if we want to run more iterations
+)
 
-print("\nClassification Report:")
-print(classification_report(y_true_classes, y_pred_classes, target_names=['Angry', 'Disgusted', 'Fearful', 'Happy', 'Neutral', 'Sad', 'Surprised']))
+plt.figure(figsize=(12, 5))
+plt.subplot(1, 2, 1)
+plt.plot(history.history['accuracy'], label='Training Accuracy')
+plt.plot(history.history['val_accuracy'], label='Validation Accuracy')
+plt.xlabel('Epoch')
+plt.ylabel('Accuracy')
+plt.legend()
 
-# Save the trained model
-cnn_model.save('emotion_recognition_cnn.h5')
+plt.subplot(1, 2, 2)
+plt.plot(history.history['loss'], label='Training Loss')
+plt.plot(history.history['val_loss'], label='Validation Loss')
+plt.xlabel('Epoch')
+plt.ylabel('Loss')
+plt.legend()
+plt.show()
+
+# rename to save model to different file
+model.save('newmodel.h5')
+
