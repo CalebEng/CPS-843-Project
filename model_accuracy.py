@@ -5,10 +5,10 @@ from sklearn.metrics import classification_report, confusion_matrix
 import seaborn as sns
 import matplotlib.pyplot as plt
 
-# Load the model
-model = load_model('newmodel.h5')
+# load model
+model = load_model('63percentaccuracy.h5')
 
-# Load the test data using ImageDataGenerator (or reuse test_generator if in the same script)
+# load test data into ImageDataGenerator
 test_datagen = ImageDataGenerator(rescale=1.0 / 255.0)
 test_generator = test_datagen.flow_from_directory(
     'data/test',
@@ -19,16 +19,15 @@ test_generator = test_datagen.flow_from_directory(
     shuffle=False
 )
 
-# Evaluate the model on the test data
+# output model accuracy on test data
 loss, accuracy = model.evaluate(test_generator, verbose=0)
 print(f"Loaded model accuracy on test data: {accuracy * 100:.2f}%")
 
-# Generate predictions and evaluate performance further if needed
 Y_pred = model.predict(test_generator)
 y_pred = np.argmax(Y_pred, axis=1)
 y_true = test_generator.classes
 
-# Confusion Matrix
+# display confusion matrix
 conf_matrix = confusion_matrix(y_true, y_pred)
 plt.figure(figsize=(8, 6))
 sns.heatmap(conf_matrix, annot=True, fmt='d', cmap='Blues',
@@ -39,5 +38,5 @@ plt.ylabel('True Label')
 plt.title('Confusion Matrix')
 plt.show()
 
-# Classification Report
+# print classification report
 print(classification_report(y_true, y_pred, target_names=test_generator.class_indices.keys()))

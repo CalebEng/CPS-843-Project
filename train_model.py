@@ -7,24 +7,19 @@ from tensorflow.keras.optimizers.schedules import ExponentialDecay
 from tensorflow.keras.optimizers import Adam
 
 import matplotlib.pyplot as plt
-import numpy as np
-import seaborn as sns
-from sklearn.metrics import confusion_matrix, classification_report
 
 # This is the code to train the 63% accuracy model
 
-# Define directories for training and testing data
+# initialize file path names for training andtesting data
 train_dir = 'data/train'
 test_dir = 'data/test'
 
-# Set up image data generators for data augmentation
-train_datagen = ImageDataGenerator(
-    rescale=1.0 / 255.0,
-)
+# Initialize image data generators
+train_datagen = ImageDataGenerator(rescale=1.0 / 255.0,)
 
 test_datagen = ImageDataGenerator(rescale=1.0 / 255.0)
 
-# Load images in batches
+# process and load images in batches
 train_generator = train_datagen.flow_from_directory(
     train_dir,
     target_size=(48, 48),
@@ -43,15 +38,14 @@ test_generator = test_datagen.flow_from_directory(
     shuffle=False
 )
 
-
-# Define the CNN model architecture
-def create_improved_model(input_shape=(48, 48, 1), num_classes=7):
+# function to load and create sequential cnn for testing
+def create_model(input_shape=(48, 48, 1), num_classes=7):
     model = Sequential()
     
-    # Start with an Input layer to specify input shape
+    # input layer
     model.add(tf.keras.layers.Input(shape=input_shape))
     
-    # First convolutional block
+    # first conv block
     model.add(Conv2D(64, kernel_size=(3, 3), activation='relu'))
     model.add(BatchNormalization())
     model.add(Conv2D(64, kernel_size=(3, 3), activation='relu'))
@@ -59,7 +53,7 @@ def create_improved_model(input_shape=(48, 48, 1), num_classes=7):
     model.add(MaxPooling2D(pool_size=(2, 2)))
     model.add(Dropout(0.25))
 
-    # Second convolutional block
+    # second conv block
     model.add(Conv2D(128, kernel_size=(3, 3), activation='relu'))
     model.add(BatchNormalization())
     model.add(Conv2D(128, kernel_size=(3, 3), activation='relu'))
@@ -67,7 +61,7 @@ def create_improved_model(input_shape=(48, 48, 1), num_classes=7):
     model.add(MaxPooling2D(pool_size=(2, 2)))
     model.add(Dropout(0.25))
 
-    # Third convolutional block
+    # third conv block
     model.add(Conv2D(256, kernel_size=(3, 3), activation='relu'))
     model.add(BatchNormalization())
     model.add(Conv2D(256, kernel_size=(3, 3), activation='relu'))
@@ -75,7 +69,7 @@ def create_improved_model(input_shape=(48, 48, 1), num_classes=7):
     model.add(MaxPooling2D(pool_size=(2, 2)))
     model.add(Dropout(0.25))
 
-    # Flatten and fully connected layers
+    # flatten and connect layers
     model.add(Flatten())
     model.add(Dense(512, activation='relu', kernel_regularizer=l2(0.01)))
     model.add(BatchNormalization())
@@ -85,8 +79,8 @@ def create_improved_model(input_shape=(48, 48, 1), num_classes=7):
     return model
 
 
-# Instantiate the model
-model = create_improved_model(input_shape=(48, 48, 1), num_classes=train_generator.num_classes)
+# initialize the model
+model = create_model(input_shape=(48, 48, 1), num_classes=train_generator.num_classes)
 
 initial_learning_rate = 0.001
 lr_schedule = ExponentialDecay(
@@ -98,20 +92,17 @@ lr_schedule = ExponentialDecay(
 optimizer = Adam(learning_rate=lr_schedule)
 model.compile(loss='categorical_crossentropy', optimizer=optimizer, metrics=['accuracy'])
 
-
-# Display the model architecture
 model.summary()
 
-# Train the model
+# training the model
 history = model.fit(
     train_generator,
     steps_per_epoch=train_generator.samples // train_generator.batch_size,
     validation_data=test_generator,
     validation_steps=test_generator.samples // test_generator.batch_size,
-    epochs=50  # Increase epochs for better training
+    epochs=50  # tune epoch if we want to run more iterations
 )
 
-# Plot training history
 plt.figure(figsize=(12, 5))
 plt.subplot(1, 2, 1)
 plt.plot(history.history['accuracy'], label='Training Accuracy')
@@ -128,24 +119,6 @@ plt.ylabel('Loss')
 plt.legend()
 plt.show()
 
-# Save the model
+# rename to save model to different file
 model.save('newmodel.h5')
 
-# Generate predictions and confusion matrix
-Y_pred = model.predict(test_generator)
-y_pred = np.argmax(Y_pred, axis=1)
-y_true = test_generator.classes
-
-# Compute and display confusion matrix
-conf_matrix = confusion_matrix(y_true, y_pred)
-plt.figure(figsize=(8, 6))
-sns.heatmap(conf_matrix, annot=True, fmt='d', cmap='Blues', 
-            xticklabels=test_generator.class_indices.keys(), 
-            yticklabels=test_generator.class_indices.keys())
-plt.xlabel('Predicted Label')
-plt.ylabel('True Label')
-plt.title('Confusion Matrix')
-plt.show()
-
-# Display classification report
-print(classification_report(y_true, y_pred, target_names=test_generator.class_indices.keys()))
