@@ -19,5 +19,7 @@ SciKitLearn 1.5.2
 To run the code make sure the above technologies are installed in your Python dependencies.
 
 python test_model.py --> allows the user to test the code using their camera with the current model
+
 python train_model.py --> trains a new model with the dataset provided above
+
 python model_accuracy.py --> displays the model's accuracy and other metrics
