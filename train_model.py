@@ -82,6 +82,7 @@ def create_model(input_shape=(48, 48, 1), num_classes=7):
 # initialize the model
 model = create_model(input_shape=(48, 48, 1), num_classes=train_generator.num_classes)
 
+# Define the learning rate of the model and initialize ExponentialDecay scheduler
 initial_learning_rate = 0.001
 lr_schedule = ExponentialDecay(
     initial_learning_rate,
@@ -103,6 +104,7 @@ history = model.fit(
     epochs=50  # tune epoch if we want to run more iterations
 )
 
+# Once the model is done training, output the model's Training Accuracy and Training Loss
 plt.figure(figsize=(12, 5))
 plt.subplot(1, 2, 1)
 plt.plot(history.history['accuracy'], label='Training Accuracy')

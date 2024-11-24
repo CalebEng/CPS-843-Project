@@ -15,10 +15,12 @@ def test_random_images(test_dir):
     plt.figure(figsize=(10, 10))
     class_labels = emotion_labels
     for i, emotion_class in enumerate(class_labels):
+        # iterate through each emotion folder in the test data set and generate a random image
         class_dir = os.path.join(test_dir, emotion_class)
         random_image = random.choice(os.listdir(class_dir))
         img_path = os.path.join(class_dir, random_image)
         
+        # once the image is selected, preprocess the data
         img = cv2.imread(img_path, cv2.IMREAD_GRAYSCALE)
         img_resized = cv2.resize(img, (48, 48))
         img_normalized = img_resized / 255.0
