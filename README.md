@@ -1,7 +1,7 @@
 # CPS-843-Project
 This project uses machine learning to predict human emotions from live video capture via your webcam.
 
-Demo video: https://drive.google.com/file/d/1IL7Uz05YGd4rMjP3XjmVQP2oMHzGv3DP/view?usp=sharing
+Demo video: https://drive.google.com/file/d/1Bnke88acp8rMwySgMMIblE2EWlVwMUWW/view?usp=sharing
 
 Dataset: https://www.kaggle.com/datasets/msambare/fer2013
 
