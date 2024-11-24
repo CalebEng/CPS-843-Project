@@ -1,5 +1,6 @@
 # CPS-843-Project
 This project uses machine learning to predict human emotions from pictures and videos.
+
 Demo video: https://drive.google.com/file/d/1PfZWQBhpB9mfm4O2wF1larU0-Gh5GTIO/view?usp=sharing
 
 Dataset: https://www.kaggle.com/datasets/msambare/fer2013
